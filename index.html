@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pháo hoa năm mới</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    canvas {
+      display: block;
+    }
+    button {
+      position: absolute;
+      top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: red;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: darkred;
+    }
+  </style>
+</head>
+<body>
+  <button id="playButton">Phát nhạc</button>
+  <canvas id="fireworksCanvas"></canvas>
+
+  <script>
+    // Cài đặt âm thanh
+    const audio = new Audio("nhactet.wav");
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let audioSource;
+
+    let audioPlaying = false;
+
+    // Sự kiện nhấn nút phát nhạc
+    document.getElementById("playButton").addEventListener("click", async () => {
+      if (!audioPlaying) {
+        await audioContext.resume();
+        audio.play();
+        audioSource = audioContext.createMediaElementSource(audio);
+        audioSource.connect(analyser);
+        analyser.connect(audioContext.destination);
+        audioPlaying = true;
+        document.getElementById("playButton").style.display = "none"; // Ẩn nút sau khi nhạc phát
+      }
+    });
+
+    // Canvas
+    const canvas = document.getElementById("fireworksCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Danh sách pháo hoa
+    const fireworks = [];
+    const particlesPerFirework = 100;
+
+    // Lớp hạt pháo hoa
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = Math.random() * 4 - 2;
+        this.vy = Math.random() * 4 - 2;
+        this.life = 100;
+        this.color = color;
+        this.alpha = 1.0;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.05; // Trọng lực
+        this.alpha -= 0.01;
+        this.life--;
+      }
+      draw() {
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Lớp pháo hoa
+    class Firework {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.particles = [];
+        const colors = ["#ff0043", "#ff9900", "#ffff00", "#00ff00", "#0099ff", "#9900ff"];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        for (let i = 0; i < particlesPerFirework; i++) {
+          this.particles.push(new Particle(x, y, color));
+        }
+      }
+      update() {
+        this.particles.forEach((particle) => particle.update());
+        this.particles = this.particles.filter((particle) => particle.life > 0);
+      }
+      draw() {
+        this.particles.forEach((particle) => particle.draw());
+      }
+    }
+
+    // Thêm pháo hoa vào danh sách
+    function addFirework() {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height / 2;
+      fireworks.push(new Firework(x, y));
+    }
+
+    // Vẽ dòng chữ "HAPPY NEW YEAR 2025" và ảnh
+    const image = new Image();
+    image.src = "tuan.png"; // Tên file ảnh của bạn
+    let scaleFactor = 1; // Để ảnh phóng to theo nhạc
+    function drawTextAndImage() {
+      // Dòng chữ
+      ctx.save();
+      const textScale = window.innerWidth / 1200; // Điều chỉnh phông chữ dựa trên kích thước màn hình
+      ctx.font = `${48 * textScale}px Sans-Serif`;
+      ctx.fillStyle = "red";
+      ctx.textAlign = "center";
+      ctx.fillText("HAPPY NEW YEAR 2025", canvas.width / 2, 80);
+      ctx.restore();
+
+      // Ảnh
+      if (image.complete) {
+        const imgWidth = image.width / 2 * scaleFactor;
+        const imgHeight = image.height / 2 * scaleFactor;
+        ctx.drawImage(image, canvas.width / 2 - imgWidth / 2, canvas.height / 2 - imgHeight / 2, imgWidth, imgHeight);
+      }
+    }
+
+    // Vòng lặp hoạt hình
+    function animate() {
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      fireworks.forEach((firework, index) => {
+        firework.update();
+        firework.draw();
+        if (firework.particles.length === 0) {
+          fireworks.splice(index, 1);
+        }
+      });
+
+      // Lấy dữ liệu âm thanh
+      if (audioSource) {
+        analyser.getByteFrequencyData(dataArray);
+        const avgFrequency = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        scaleFactor = 1 + avgFrequency / 256; // Điều chỉnh kích thước ảnh theo tần số âm thanh
+      }
+
+      drawTextAndImage(); // Vẽ chữ và ảnh
+      requestAnimationFrame(animate);
+    }
+
+    // Khởi động pháo hoa
+    setInterval(addFirework, 800);
+    animate();
+
+    // Cập nhật kích thước canvas khi thay đổi kích thước cửa sổ
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
